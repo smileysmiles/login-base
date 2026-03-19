@@ -1,0 +1,96 @@
+@startuml
+title login-base deployment on Tanzu
+
+node "Client Devices" {
+  artifact "Web / Mobile Clients" as clients
+}
+
+cloud "Tanzu Platform" {
+  node "Ingress / Load Balancer" as ingress
+
+  node "Kubernetes Cluster" {
+    frame "Namespace: login" {
+      node "Service: login-base" as svc
+
+      frame "Deployment: login-base" {
+        node "Pod 1" as pod1 {
+          artifact "login-base container" as app1
+        }
+        node "Pod 2" as pod2 {
+          artifact "login-base container" as app2
+        }
+        node "Pod N" as podn {
+          artifact "login-base container" as appn
+        }
+      }
+
+      frame "Deployment: login-base-canary" {
+        node "Canary Pod 1" as canary1 {
+          artifact "login-base container" as appc1
+        }
+        node "Canary Pod 2" as canary2 {
+          artifact "login-base container" as appc2
+        }
+      }
+    }
+  }
+}
+
+database "Shared Auth Account Database" as authdb
+node "Compliance API" as compliance
+node "Container Registry" as registry
+node "Observability Stack" as observability
+
+clients --> ingress : HTTPS /login
+ingress --> svc : route traffic
+svc --> app1
+svc --> app2
+svc --> appn
+svc --> appc1
+svc --> appc2
+
+app1 --> authdb : auth account lookup
+app2 --> authdb : auth account lookup
+appn --> authdb : auth account lookup
+appc1 --> authdb : auth account lookup
+appc2 --> authdb : auth account lookup
+
+app1 --> compliance : exclusion check
+app2 --> compliance : exclusion check
+appn --> compliance : exclusion check
+appc1 --> compliance : exclusion check
+appc2 --> compliance : exclusion check
+
+pod1 --> registry : image pull
+pod2 --> registry : image pull
+podn --> registry : image pull
+canary1 --> registry : image pull
+canary2 --> registry : image pull
+
+app1 --> observability : logs / metrics
+app2 --> observability : logs / metrics
+appn --> observability : logs / metrics
+appc1 --> observability : logs / metrics
+appc2 --> observability : logs / metrics
+
+note right of svc
+The Kubernetes Service provides
+stable discovery across multiple
+replicas and deployments.
+end note
+
+note bottom of authdb
+Application pods must remain stateless.
+Persistent state belongs in shared
+services outside the deployment.
+The in-memory repository is only
+appropriate for local development.
+end note
+
+note right of canary1
+Separate deployments allow
+rolling, canary, or blue/green
+release strategies on Tanzu.
+end note
+
+@enduml

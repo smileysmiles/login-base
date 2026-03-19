@@ -1,5 +1,6 @@
-use crate::app::login::ComplianceService;
+use crate::app::ports::ComplianceService;
 
+/// Compliance adapter that never excludes any auth account.
 pub struct MockComplianceService;
 
 impl ComplianceService for MockComplianceService {

@@ -1,0 +1,60 @@
+@startuml
+title login-base architecture
+
+package "main" {
+  class main_rs as "main.rs"
+}
+
+package "domain" {
+  class AuthAccount
+}
+
+package "app" {
+  package "ports" {
+    interface AuthAccountRepository
+    interface ComplianceService
+  }
+
+  package "login" {
+    class LoginRequest
+    class LoginResponse
+    enum LoginError
+    interface LoginUseCase
+    class LoginService
+  }
+}
+
+package "infra" {
+  class InMemoryAuthAccountRepository
+  class MockComplianceService
+}
+
+package "http" {
+  class LoginRequestDto
+  class LoginResponseDto
+  class AppState
+  class Routes
+}
+
+main_rs --> LoginService : constructs
+main_rs --> InMemoryAuthAccountRepository : wires
+main_rs --> MockComplianceService : wires
+main_rs --> AppState : injects
+
+LoginService ..|> LoginUseCase
+LoginService --> AuthAccountRepository
+LoginService --> ComplianceService
+AuthAccountRepository --> AuthAccount
+
+InMemoryAuthAccountRepository ..|> AuthAccountRepository
+InMemoryAuthAccountRepository --> AuthAccount
+MockComplianceService ..|> ComplianceService
+
+Routes --> AppState
+AppState --> LoginUseCase
+Routes --> LoginRequestDto
+Routes --> LoginResponseDto
+Routes --> LoginRequest
+Routes --> LoginError : maps to HTTP status
+
+@enduml

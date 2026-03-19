@@ -1,0 +1,38 @@
+@startuml
+title login screen visual states
+
+[*] --> EmptyForm
+EmptyForm --> Submitting : user clicks Sign In
+Submitting --> Success : valid credentials
+Submitting --> InvalidCredentials : 401
+Submitting --> AccountLocked : 403 locked
+Submitting --> SelfExcluded : 403 excluded
+
+InvalidCredentials --> EmptyForm : user edits input
+AccountLocked --> EmptyForm : user retries or resets flow
+SelfExcluded --> EmptyForm : user acknowledges message
+Success --> [*]
+
+state EmptyForm
+state Submitting
+state Success
+state InvalidCredentials
+state AccountLocked
+state SelfExcluded
+
+note right of InvalidCredentials
+Visual test should confirm
+generic credential error copy.
+end note
+
+note right of AccountLocked
+Visual test should confirm
+locked-account message and styling.
+end note
+
+note right of SelfExcluded
+Visual test should confirm
+self-exclusion warning state.
+end note
+
+@enduml

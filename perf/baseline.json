@@ -1,0 +1,18 @@
+{
+    "scenario":  "login",
+    "notes":  "Set this after a known-good intentional perf run. Values are regression indicators, not production benchmarks.",
+    "metrics":  {
+                    "p50_ms":  0,
+                    "p95_ms":  2.011,
+                    "p99_ms":  2.698,
+                    "avg_ms":  0.545,
+                    "throughput_rps":  26855.617,
+                    "failure_rate":  0
+                },
+    "guardrails":  {
+                       "warn_regression_pct":  10,
+                       "fail_regression_pct":  20,
+                       "failure_rate_warn_abs":  0.01,
+                       "failure_rate_fail_abs":  0.05
+                   }
+}
