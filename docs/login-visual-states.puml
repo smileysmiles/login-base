@@ -4,35 +4,27 @@ title login screen visual states
 [*] --> EmptyForm
 EmptyForm --> Submitting : user clicks Sign In
 Submitting --> Success : valid credentials
-Submitting --> InvalidCredentials : 401
-Submitting --> AccountLocked : 403 locked
-Submitting --> SelfExcluded : 403 excluded
+Submitting --> AuthenticationFailed : 401 generic failure
 
-InvalidCredentials --> EmptyForm : user edits input
-AccountLocked --> EmptyForm : user retries or resets flow
-SelfExcluded --> EmptyForm : user acknowledges message
+AuthenticationFailed --> EmptyForm : user edits input
 Success --> [*]
 
 state EmptyForm
 state Submitting
 state Success
-state InvalidCredentials
-state AccountLocked
-state SelfExcluded
+state AuthenticationFailed
 
-note right of InvalidCredentials
+note right of AuthenticationFailed
 Visual test should confirm
-generic credential error copy.
+generic auth failure copy and styling.
+No account-state-specific leakage
+should be visible in the UI.
 end note
 
-note right of AccountLocked
-Visual test should confirm
-locked-account message and styling.
-end note
-
-note right of SelfExcluded
-Visual test should confirm
-self-exclusion warning state.
+note right of Success
+Successful login state should
+carry a JWT returned from the
+current auth boundary.
 end note
 
 @enduml

@@ -23,6 +23,7 @@ pub enum LoginResponseDto {
 #[derive(Debug, Serialize)]
 pub struct LoginSuccessDto {
     pub message: String,
+    pub token: String,
 }
 
 /// Generic error payload returned to the client.

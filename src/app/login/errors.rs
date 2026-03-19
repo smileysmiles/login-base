@@ -1,5 +1,5 @@
 /// Explicit internal login outcomes.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoginError {
     /// Username was not found or password did not match.
     InvalidCredentials,

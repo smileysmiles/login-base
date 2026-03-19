@@ -16,9 +16,10 @@ The executable in [src/main.rs](C:\Dev\login-base\src\main.rs#L1) wires:
 
 - `InMemoryAuthAccountRepository` seeded with one demo user
 - `MockComplianceService`, which always returns `false`
+- `JwtTokenIssuer`, which signs a JWT for successful logins
 - `LoginService`, exposed to HTTP as `Arc<dyn LoginUseCase + Send + Sync>`
 
-The login flow in [src/app/login/service.rs](C:\Dev\login-base\src\app\login\service.rs#L1) is:
+The login flow is split between [src/app/login/authenticate.rs](C:\Dev\login-base\src\app\login\authenticate.rs#L1) and [src/app/login/service.rs](C:\Dev\login-base\src\app\login\service.rs#L1):
 
 1. Load the auth account by username.
 2. If no auth account is found, return `LoginError::InvalidCredentials`.
@@ -27,7 +28,8 @@ The login flow in [src/app/login/service.rs](C:\Dev\login-base\src\app\login\ser
 5. If the password does not match, return `LoginError::InvalidCredentials`.
 6. Run the compliance check.
 7. If excluded, return `LoginError::SelfExcluded`.
-8. Otherwise return success with message `"OK"`.
+8. Otherwise issue a JWT for the authenticated account.
+9. Return success with message `"OK"` and the token.
 
 Internal outcomes are explicit, but the HTTP layer deliberately collapses all failures into the same external response to avoid exposing account state.
 
@@ -52,7 +54,8 @@ Success response:
 ```json
 {
   "status": "ok",
-  "message": "OK"
+  "message": "OK",
+  "token": "<jwt>"
 }
 ```
 
@@ -68,7 +71,7 @@ Failure response:
 Current HTTP behavior:
 
 - health returns `200 OK` with `{"status":"ok"}`
-- success returns `200 OK`
+- success returns `200 OK` with a signed JWT
 - all authentication failures return `401 Unauthorized`
 - the response body does not distinguish between unknown user, wrong password, locked account, or self-excluded account
 
@@ -88,7 +91,9 @@ The current automated coverage is focused on the login use case and the HTTP bou
 
 Application tests in [src/app/login/service.rs](C:\Dev\login-base\src\app\login\service.rs#L44) cover:
 
-- valid login
+- JWT issuance after successful authentication
+- propagation of authentication failures without token issuance
+- core authentication success and failure branches
 - unknown username
 - wrong password
 - locked account

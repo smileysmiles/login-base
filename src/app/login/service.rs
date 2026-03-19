@@ -1,82 +1,66 @@
-use crate::app::ports::{AuthAccountRepository, ComplianceService};
+use crate::app::ports::TokenIssuer;
 
+use super::authenticate::AuthenticateUseCase;
 use super::commands::LoginRequest;
-use super::errors::LoginError;
 use super::results::{LoginResponse, LoginResult};
 
 /// Application-facing interface for executing the login flow.
 pub trait LoginUseCase {
-    /// Attempts to authenticate an auth account using the supplied credentials.
+    /// Attempts to authenticate an auth account and issue a JWT on success.
     fn login(&self, req: LoginRequest) -> LoginResult;
 }
 
-/// Default login use case implementation.
-pub struct LoginService<R: AuthAccountRepository, C: ComplianceService> {
-    auth_accounts: R,
-    compliance: C,
+/// Thin login wrapper that issues a token after successful authentication.
+pub struct LoginService<A: AuthenticateUseCase, T: TokenIssuer> {
+    authenticator: A,
+    token_issuer: T,
 }
 
-impl<R: AuthAccountRepository, C: ComplianceService> LoginService<R, C> {
-    /// Creates a login service from its required ports.
-    pub fn new(auth_accounts: R, compliance: C) -> Self {
+impl<A: AuthenticateUseCase, T: TokenIssuer> LoginService<A, T> {
+    /// Creates a login service from its required authentication and token ports.
+    pub fn new(authenticator: A, token_issuer: T) -> Self {
         Self {
-            auth_accounts,
-            compliance,
+            authenticator,
+            token_issuer,
         }
     }
 }
 
-impl<R: AuthAccountRepository, C: ComplianceService> LoginUseCase for LoginService<R, C> {
+impl<A: AuthenticateUseCase, T: TokenIssuer> LoginUseCase for LoginService<A, T> {
     fn login(&self, req: LoginRequest) -> LoginResult {
-        let Some(account) = self.auth_accounts.get_by_username(&req.username) else {
-            return Err(LoginError::InvalidCredentials);
-        };
-
-        if account.is_locked {
-            return Err(LoginError::AccountLocked);
-        }
-
-        // Temporary plain-text check until hashing is introduced.
-        if req.password != account.password_hash {
-            return Err(LoginError::InvalidCredentials);
-        }
-
-        if self.compliance.is_excluded(account.id) {
-            return Err(LoginError::SelfExcluded);
-        }
+        let authenticated = self.authenticator.authenticate(req)?;
+        let token = self.token_issuer.issue_for(&authenticated.account);
 
         Ok(LoginResponse {
             message: "OK".to_string(),
+            token,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::app::ports::TokenIssuer;
     use crate::domain::auth_account::AuthAccount;
 
     use super::*;
+    use crate::app::login::{AuthenticateUseCase, AuthenticationSuccess, LoginError};
 
-    struct TestAuthAccountRepository {
-        account: Option<AuthAccount>,
+    struct StubAuthenticateUseCase {
+        result: Result<AuthenticationSuccess, LoginError>,
     }
 
-    impl AuthAccountRepository for TestAuthAccountRepository {
-        fn get_by_username(&self, username: &str) -> Option<AuthAccount> {
-            self.account
-                .as_ref()
-                .filter(|account| account.username == username)
-                .cloned()
+    impl AuthenticateUseCase for StubAuthenticateUseCase {
+        fn authenticate(&self, _req: LoginRequest) -> Result<AuthenticationSuccess, LoginError> {
+            self.result.clone()
         }
     }
 
-    struct TestComplianceService {
-        excluded: bool,
-    }
+    struct StubTokenIssuer;
 
-    impl ComplianceService for TestComplianceService {
-        fn is_excluded(&self, _player_id: u64) -> bool {
-            self.excluded
+    impl TokenIssuer for StubTokenIssuer {
+        fn issue_for(&self, account: &AuthAccount) -> String {
+            format!("token-for-{}", account.id)
         }
     }
 
@@ -90,22 +74,26 @@ mod tests {
     #[test]
     fn login_succeeds_for_valid_credentials() {
         let service = LoginService::new(
-            TestAuthAccountRepository {
-                account: Some(AuthAccount::new(1, "demo", "password", false)),
+            StubAuthenticateUseCase {
+                result: Ok(AuthenticationSuccess {
+                    account: AuthAccount::new(1, "demo", "password", false),
+                }),
             },
-            TestComplianceService { excluded: false },
+            StubTokenIssuer,
         );
 
         let result = service.login(make_request("password"));
 
-        assert!(matches!(result, Ok(LoginResponse { message }) if message == "OK"));
+        assert!(matches!(result, Ok(LoginResponse { message, token }) if message == "OK" && token == "token-for-1"));
     }
 
     #[test]
     fn login_fails_when_username_is_unknown() {
         let service = LoginService::new(
-            TestAuthAccountRepository { account: None },
-            TestComplianceService { excluded: false },
+            StubAuthenticateUseCase {
+                result: Err(LoginError::InvalidCredentials),
+            },
+            StubTokenIssuer,
         );
 
         let result = service.login(make_request("password"));
@@ -116,10 +104,10 @@ mod tests {
     #[test]
     fn login_fails_when_password_is_wrong() {
         let service = LoginService::new(
-            TestAuthAccountRepository {
-                account: Some(AuthAccount::new(1, "demo", "password", false)),
+            StubAuthenticateUseCase {
+                result: Err(LoginError::InvalidCredentials),
             },
-            TestComplianceService { excluded: false },
+            StubTokenIssuer,
         );
 
         let result = service.login(make_request("wrong-password"));
@@ -130,10 +118,10 @@ mod tests {
     #[test]
     fn login_fails_when_account_is_locked() {
         let service = LoginService::new(
-            TestAuthAccountRepository {
-                account: Some(AuthAccount::new(1, "demo", "password", true)),
+            StubAuthenticateUseCase {
+                result: Err(LoginError::AccountLocked),
             },
-            TestComplianceService { excluded: false },
+            StubTokenIssuer,
         );
 
         let result = service.login(make_request("password"));
@@ -144,10 +132,10 @@ mod tests {
     #[test]
     fn login_fails_when_auth_account_is_self_excluded() {
         let service = LoginService::new(
-            TestAuthAccountRepository {
-                account: Some(AuthAccount::new(1, "demo", "password", false)),
+            StubAuthenticateUseCase {
+                result: Err(LoginError::SelfExcluded),
             },
-            TestComplianceService { excluded: true },
+            StubTokenIssuer,
         );
 
         let result = service.login(make_request("password"));

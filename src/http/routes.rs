@@ -45,6 +45,7 @@ async fn login_handler(
             StatusCode::OK,
             Json(LoginResponseDto::Success(LoginSuccessDto {
                 message: res.message,
+                token: res.token,
             })),
         ),
         Err(err) => (
@@ -91,6 +92,7 @@ mod tests {
             match req.username.as_str() {
                 "demo" if req.password == "password" => Ok(LoginResponse {
                     message: "OK".to_string(),
+                    token: "stub-jwt".to_string(),
                 }),
                 "locked" => Err(crate::app::login::LoginError::AccountLocked),
                 "excluded" => Err(crate::app::login::LoginError::SelfExcluded),
@@ -157,7 +159,10 @@ mod tests {
         let (status, body) = post_login("demo", "password").await;
 
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(body, json!({ "status": "ok", "message": "OK" }));
+        assert_eq!(
+            body,
+            json!({ "status": "ok", "message": "OK", "token": "stub-jwt" })
+        );
     }
 
     #[tokio::test]

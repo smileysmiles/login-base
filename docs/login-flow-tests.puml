@@ -4,12 +4,12 @@ title login flow and test branches
 start
 :Client submits username and password;
 :HTTP /login handler builds LoginRequest;
-:LoginService loads auth account by username;
+:AuthenticationService loads auth account by username;
 
 if (Auth account found?) then (yes)
   if (Account locked?) then (yes)
     :Return AccountLocked;
-    :HTTP 403 + error body;
+    :HTTP 401 + generic error body;
     stop
   else (no)
   endif
@@ -17,21 +17,22 @@ if (Auth account found?) then (yes)
   if (Password matches?) then (yes)
     if (Self-excluded?) then (yes)
       :Return SelfExcluded;
-      :HTTP 403 + error body;
+      :HTTP 401 + generic error body;
       stop
     else (no)
-      :Return success;
-      :HTTP 200 + success body;
+      :JwtTokenIssuer signs JWT;
+      :Return success with token;
+      :HTTP 200 + success body with token;
       stop
     endif
   else (no)
     :Return InvalidCredentials;
-    :HTTP 401 + error body;
+    :HTTP 401 + generic error body;
     stop
   endif
 else (no)
   :Return InvalidCredentials;
-  :HTTP 401 + error body;
+  :HTTP 401 + generic error body;
   stop
 endif
 

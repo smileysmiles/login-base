@@ -13,12 +13,15 @@ package "app" {
   package "ports" {
     interface AuthAccountRepository
     interface ComplianceService
+    interface TokenIssuer
   }
 
   package "login" {
     class LoginRequest
     class LoginResponse
     enum LoginError
+    interface AuthenticateUseCase
+    class AuthenticationService
     interface LoginUseCase
     class LoginService
   }
@@ -26,6 +29,7 @@ package "app" {
 
 package "infra" {
   class InMemoryAuthAccountRepository
+  class JwtTokenIssuer
   class MockComplianceService
 }
 
@@ -37,17 +41,23 @@ package "http" {
 }
 
 main_rs --> LoginService : constructs
+main_rs --> AuthenticationService : constructs
 main_rs --> InMemoryAuthAccountRepository : wires
+main_rs --> JwtTokenIssuer : wires
 main_rs --> MockComplianceService : wires
 main_rs --> AppState : injects
 
+AuthenticationService ..|> AuthenticateUseCase
 LoginService ..|> LoginUseCase
-LoginService --> AuthAccountRepository
-LoginService --> ComplianceService
+LoginService --> AuthenticateUseCase
+LoginService --> TokenIssuer
+AuthenticationService --> AuthAccountRepository
+AuthenticationService --> ComplianceService
 AuthAccountRepository --> AuthAccount
 
 InMemoryAuthAccountRepository ..|> AuthAccountRepository
 InMemoryAuthAccountRepository --> AuthAccount
+JwtTokenIssuer ..|> TokenIssuer
 MockComplianceService ..|> ComplianceService
 
 Routes --> AppState

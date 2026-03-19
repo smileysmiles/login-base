@@ -4,6 +4,7 @@ use super::errors::LoginError;
 #[derive(Debug, PartialEq, Eq)]
 pub struct LoginResponse {
     pub message: String,
+    pub token: String,
 }
 
 /// Internal login outcome used by the application layer.
