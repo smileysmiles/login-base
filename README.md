@@ -83,6 +83,13 @@ When running in `telemetry` mode, trace export is enabled by setting:
 
 If `OTEL_EXPORTER_OTLP_ENDPOINT` is not set, telemetry stays local (structured JSON logs only).
 
+Telemetry mode also adds request-level tracing middleware:
+
+- generates or reuses `x-request-id`
+- propagates `x-request-id` on responses
+- emits `http.request` spans with `method`, `path`, and `request_id`
+- emits request completion/failure logs with `status` and `latency_ms`
+
 #### Local Collector Quickstart
 
 1. Start a local OpenTelemetry Collector using the bundled config:

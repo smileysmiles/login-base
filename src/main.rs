@@ -19,7 +19,11 @@ use infra::mock_compliance::MockComplianceService;
 use infra::mock_observability::MockObservability;
 use infra::telemetry_observability::TelemetryObservability;
 use infra::tracing_setup::init_tracing;
+use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::cors::CorsLayer;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
+use tower_http::trace::TraceLayer;
+use tracing::Span;
 
 
 #[tokio::main]
@@ -66,6 +70,39 @@ async fn main() {
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
     let app = router(state).layer(cors);
+    let app = app
+        .layer(TraceLayer::new_for_http().make_span_with(|request: &axum::http::Request<_>| {
+            let request_id = request
+                .headers()
+                .get("x-request-id")
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or("missing");
+
+            tracing::info_span!(
+                "http.request",
+                method = %request.method(),
+                path = %request.uri().path(),
+                request_id = %request_id
+            )
+        }).on_response(
+            |response: &axum::http::Response<_>, latency: std::time::Duration, _span: &Span| {
+                tracing::info!(
+                    status = response.status().as_u16(),
+                    latency_ms = latency.as_millis() as u64,
+                    "request completed"
+                );
+            },
+        ).on_failure(
+            |error: ServerErrorsFailureClass, latency: std::time::Duration, _span: &Span| {
+                tracing::warn!(
+                    error = ?error,
+                    latency_ms = latency.as_millis() as u64,
+                    "request failed"
+                );
+            },
+        ))
+        .layer(PropagateRequestIdLayer::x_request_id())
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid));
 
     let addr: SocketAddr = "127.0.0.1:3000".parse().unwrap();
     tracing::info!(
