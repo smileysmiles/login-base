@@ -70,6 +70,7 @@ The executable now supports two adapters selected by `LOGIN_BASE_OBSERVABILITY`:
 
 - `telemetry` (default): structured JSON logs + trace spans + monotonic event counters via `tracing`
 - `mock`: simple `auth_event={...}` stdout lines
+- `none`: disables business-event emission (useful for performance isolation runs)
 
 `telemetry` mode is intended as the production-oriented default and keeps sensitive values out of events (no passwords or raw tokens).
 
@@ -80,6 +81,20 @@ When running in `telemetry` mode, trace export is enabled by setting:
 - `OTEL_EXPORTER_OTLP_ENDPOINT` (for example `http://localhost:4317`)
 - optional `OTEL_SERVICE_NAME` (defaults to `login-base`)
 - optional `OTEL_EXPORTER_OTLP_HEADERS` for vendor/API auth headers
+- optional sampler controls:
+  - `LOGIN_BASE_TRACE_SAMPLER` (or `OTEL_TRACES_SAMPLER`)
+  - `LOGIN_BASE_TRACE_SAMPLER_RATIO` (or `OTEL_TRACES_SAMPLER_ARG`)
+
+Supported sampler values:
+
+- `always_on`
+- `always_off`
+- `traceidratio`
+- `parentbased_always_on`
+- `parentbased_always_off`
+- `parentbased_traceidratio` (default)
+
+Default sampling ratio is `0.05` (5% traces) when a ratio-based sampler is selected.
 
 If `OTEL_EXPORTER_OTLP_ENDPOINT` is not set, telemetry stays local (structured JSON logs only).
 
@@ -90,14 +105,14 @@ Telemetry mode also adds request-level tracing middleware:
 - emits `http.request` spans with `method`, `path`, and `request_id`
 - emits request completion/failure logs with `status` and `latency_ms`
 
+Set `LOGIN_BASE_HTTP_TRACE_ENABLED=false` to disable HTTP request trace/log middleware for perf-focused runs.
+
 #### Local Collector Quickstart
 
 1. Start a local OpenTelemetry Collector using the bundled config:
 
-```bash
-docker run --rm -p 4317:4317 \
-  -v "${PWD}/docs/otel-collector-config.yaml:/etc/otelcol/config.yaml" \
-  otel/opentelemetry-collector:latest
+```powershell
+docker run --rm -p 4317:4317 --mount type=bind,source="C:\Dev\login-base\docs\otel-collector-config.yaml",target=/etc/otelcol/config.yaml,readonly otel/opentelemetry-collector:latest
 ```
 
 2. In a second terminal, run the app with telemetry + OTLP:
@@ -110,6 +125,64 @@ cargo run
 ```
 
 3. Exercise an endpoint (for example `POST /login`) and confirm spans appear in collector output.
+
+### Run Config Scenarios
+
+Use these CMD examples as copy/paste profiles.
+
+1. Local dev, business events only (simple stdout):
+
+```cmd
+set "LOGIN_BASE_OBSERVABILITY=mock"
+set "LOGIN_BASE_HTTP_TRACE_ENABLED=true"
+cargo run
+```
+
+2. Telemetry logs/traces locally (no OTLP export):
+
+```cmd
+set "LOGIN_BASE_OBSERVABILITY=telemetry"
+set "LOGIN_BASE_HTTP_TRACE_ENABLED=true"
+set "OTEL_EXPORTER_OTLP_ENDPOINT="
+cargo run
+```
+
+3. Telemetry + OTLP, low-overhead sampled tracing (recommended default):
+
+```cmd
+set "LOGIN_BASE_OBSERVABILITY=telemetry"
+set "LOGIN_BASE_HTTP_TRACE_ENABLED=true"
+set "OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317"
+set "OTEL_SERVICE_NAME=login-base"
+set "LOGIN_BASE_TRACE_SAMPLER=parentbased_traceidratio"
+set "LOGIN_BASE_TRACE_SAMPLER_RATIO=0.05"
+cargo run
+```
+
+4. Telemetry + OTLP with full tracing (debug only, expensive):
+
+```cmd
+set "LOGIN_BASE_OBSERVABILITY=telemetry"
+set "LOGIN_BASE_HTTP_TRACE_ENABLED=true"
+set "OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317"
+set "LOGIN_BASE_TRACE_SAMPLER=always_on"
+cargo run
+```
+
+5. Perf isolation mode (disable observability overhead):
+
+```cmd
+set "LOGIN_BASE_OBSERVABILITY=none"
+set "LOGIN_BASE_HTTP_TRACE_ENABLED=false"
+cargo run
+```
+
+6. Perf run command (separate terminal, after starting app):
+
+```powershell
+.\perf\run.ps1 -Scenario login
+.\perf\run.ps1 -Scenario login-failure
+```
 
 ## HTTP API
 

@@ -16,8 +16,9 @@ const params = {
 };
 
 export default function () {
+  // Use unknown usernames so this scenario stays read-only and does not lock seeded accounts.
   const userIndex = ((__VU - 1) * 1000000 + __ITER) % 100 + 1;
-  const username = userIndex === 1 ? 'demo' : `demo-${userIndex}`;
+  const username = `missing-${userIndex}`;
   const payload = JSON.stringify({
     username,
     password: 'wrong-password',

@@ -6,5 +6,6 @@ pub mod jwt_session_manager;
 pub mod jwt_token_issuer;
 pub mod mock_compliance;
 pub mod mock_observability;
+pub mod noop_observability;
 pub mod telemetry_observability;
 pub mod tracing_setup;

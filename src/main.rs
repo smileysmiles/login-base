@@ -17,6 +17,7 @@ use infra::jwt_session_manager::JwtSessionManager;
 use infra::jwt_token_issuer::JwtTokenIssuer;
 use infra::mock_compliance::MockComplianceService;
 use infra::mock_observability::MockObservability;
+use infra::noop_observability::NoopObservability;
 use infra::telemetry_observability::TelemetryObservability;
 use infra::tracing_setup::init_tracing;
 use tower_http::classify::ServerErrorsFailureClass;
@@ -33,11 +34,13 @@ async fn main() {
     let jwt_secret = "local-dev-secret";
     let observability_mode =
         std::env::var("LOGIN_BASE_OBSERVABILITY").unwrap_or_else(|_| "telemetry".to_string());
+    let http_trace_enabled = env_flag("LOGIN_BASE_HTTP_TRACE_ENABLED", true);
 
     // Build infra
     let repo = InMemoryAuthAccountRepository::new_with_demo_users(100);
     let compliance = MockComplianceService;
     let observability: Arc<dyn Observability + Send + Sync> = match observability_mode.as_str() {
+        "none" => Arc::new(NoopObservability),
         "mock" => Arc::new(MockObservability),
         _ => Arc::new(TelemetryObservability::default()),
     };
@@ -70,8 +73,8 @@ async fn main() {
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
     let app = router(state).layer(cors);
-    let app = app
-        .layer(TraceLayer::new_for_http().make_span_with(|request: &axum::http::Request<_>| {
+    let app = if http_trace_enabled {
+        app.layer(TraceLayer::new_for_http().make_span_with(|request: &axum::http::Request<_>| {
             let request_id = request
                 .headers()
                 .get("x-request-id")
@@ -102,12 +105,16 @@ async fn main() {
             },
         ))
         .layer(PropagateRequestIdLayer::x_request_id())
-        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid));
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+    } else {
+        app
+    };
 
     let addr: SocketAddr = "127.0.0.1:3000".parse().unwrap();
     tracing::info!(
         address = %addr,
         observability_mode = %observability_mode,
+        http_trace_enabled,
         "listening"
     );
 
@@ -118,5 +125,16 @@ async fn main() {
 
     if let Some(provider) = tracer_provider {
         let _ = provider.shutdown();
+    }
+}
+
+fn env_flag(name: &str, default: bool) -> bool {
+    match std::env::var(name) {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "0" | "false" | "off" | "no" => false,
+            "1" | "true" | "on" | "yes" => true,
+            _ => default,
+        },
+        Err(_) => default,
     }
 }
