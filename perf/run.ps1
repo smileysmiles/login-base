@@ -1,7 +1,7 @@
 param(
     [string]$BaseUrl = "http://127.0.0.1:3000",
     [string]$Scenario = "login",
-    [string]$BaselinePath = "perf/baseline.json",
+    [string]$BaselinePath = "",
     [string]$ResultsDir = "perf/results"
 )
 
@@ -129,7 +129,7 @@ New-Item -ItemType Directory -Force -Path $ResultsDir | Out-Null
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $tempSummaryPath = Join-Path $ResultsDir "k6-summary-$timestamp.json"
-$resultPath = Join-Path $ResultsDir "login-$timestamp.json"
+$resultPath = Join-Path $ResultsDir "$Scenario-$timestamp.json"
 
 $gitSha = (git rev-parse --short HEAD 2>$null)
 if (-not $gitSha) {
@@ -138,7 +138,22 @@ if (-not $gitSha) {
 
 $loginUrl = "$($BaseUrl.TrimEnd('/'))/login"
 
-& k6 run "perf/login.js" `
+$scenarioScript = switch ($Scenario) {
+    "login" { "perf/login.js" }
+    "login-failure" { "perf/login-failure.js" }
+    default { throw "Unknown scenario '$Scenario'. Supported scenarios: login, login-failure." }
+}
+
+if (-not $BaselinePath) {
+    $BaselinePath = if ($Scenario -eq "login") {
+        "perf/baseline.json"
+    }
+    else {
+        "perf/baseline-$Scenario.json"
+    }
+}
+
+& k6 run $scenarioScript `
     --env "LOGIN_BASE_URL=$loginUrl" `
     --summary-export $tempSummaryPath
 

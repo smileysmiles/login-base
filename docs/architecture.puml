@@ -9,62 +9,109 @@ package "domain" {
   class AuthAccount
 }
 
-package "app" {
-  package "ports" {
-    interface AuthAccountRepository
-    interface ComplianceService
+  package "app" {
+    package "ports" {
+      interface AuthAccountRepository
+      interface ComplianceService
+      interface TokenSessionManager
     interface TokenIssuer
   }
 
-  package "login" {
-    class LoginRequest
-    class LoginResponse
-    enum LoginError
-    interface AuthenticateUseCase
-    class AuthenticationService
-    interface LoginUseCase
-    class LoginService
+    package "login" {
+      class ChangePasswordRequest
+      class ChangePasswordResponse
+      enum ChangePasswordError
+      class ForgotPasswordRequest
+      class LoginRequest
+      class LoginResponse
+      enum LoginError
+      class ResetPasswordRequest
+      class ResetPasswordResponse
+      enum ResetPasswordError
+      interface AuthenticateUseCase
+      class AuthenticationService
+      interface ChangePasswordUseCase
+      class ChangePasswordService
+      interface LoginUseCase
+      class LoginService
+      interface PasswordResetUseCase
+      class PasswordResetService
+    }
   }
-}
 
-package "infra" {
-  class InMemoryAuthAccountRepository
-  class JwtTokenIssuer
-  class MockComplianceService
-}
+  package "infra" {
+    class InMemoryAuthAccountRepository
+    class InMemorySessionStore
+    class JwtSessionManager
+    class JwtTokenIssuer
+    class MockComplianceService
+    class "Future Player Service" as FuturePlayerService
+  }
 
-package "http" {
-  class LoginRequestDto
-  class LoginResponseDto
-  class AppState
-  class Routes
-}
+  package "http" {
+    class ChangePasswordRequestDto
+    class ForgotPasswordRequestDto
+    class LoginRequestDto
+    class LoginResponseDto
+    class MeResponseDto
+    class LogoutResponseDto
+    class ResetPasswordRequestDto
+    class AppState
+    class Routes
+  }
 
-main_rs --> LoginService : constructs
-main_rs --> AuthenticationService : constructs
-main_rs --> InMemoryAuthAccountRepository : wires
-main_rs --> JwtTokenIssuer : wires
-main_rs --> MockComplianceService : wires
-main_rs --> AppState : injects
+  main_rs --> ChangePasswordService : constructs
+  main_rs --> LoginService : constructs
+  main_rs --> PasswordResetService : constructs
+  main_rs --> AuthenticationService : constructs
+  main_rs --> InMemoryAuthAccountRepository : wires
+  main_rs --> InMemorySessionStore : wires
+  main_rs --> JwtSessionManager : wires
+  main_rs --> JwtTokenIssuer : wires
+  main_rs --> MockComplianceService : wires
+  main_rs --> AppState : injects
 
-AuthenticationService ..|> AuthenticateUseCase
-LoginService ..|> LoginUseCase
-LoginService --> AuthenticateUseCase
-LoginService --> TokenIssuer
-AuthenticationService --> AuthAccountRepository
-AuthenticationService --> ComplianceService
-AuthAccountRepository --> AuthAccount
+  AuthenticationService ..|> AuthenticateUseCase
+  ChangePasswordService ..|> ChangePasswordUseCase
+  LoginService ..|> LoginUseCase
+  PasswordResetService ..|> PasswordResetUseCase
+  LoginService --> AuthenticateUseCase
+  LoginService --> TokenIssuer
+  AuthenticationService --> AuthAccountRepository
+  AuthenticationService --> ComplianceService
+  ChangePasswordService --> AuthAccountRepository
+  PasswordResetService --> AuthAccountRepository
+  AppState --> TokenSessionManager
+  AppState --> ChangePasswordUseCase
+  AuthAccountRepository --> AuthAccount
+  AppState --> LoginUseCase
+  AppState --> PasswordResetUseCase
 
-InMemoryAuthAccountRepository ..|> AuthAccountRepository
-InMemoryAuthAccountRepository --> AuthAccount
-JwtTokenIssuer ..|> TokenIssuer
-MockComplianceService ..|> ComplianceService
+  InMemoryAuthAccountRepository ..|> AuthAccountRepository
+  InMemoryAuthAccountRepository --> AuthAccount
+  JwtTokenIssuer --> InMemorySessionStore
+  JwtSessionManager ..|> TokenSessionManager
+  JwtSessionManager --> InMemorySessionStore
+  JwtTokenIssuer ..|> TokenIssuer
+  MockComplianceService ..|> ComplianceService
 
-Routes --> AppState
-AppState --> LoginUseCase
-Routes --> LoginRequestDto
-Routes --> LoginResponseDto
-Routes --> LoginRequest
-Routes --> LoginError : maps to HTTP status
+  Routes --> AppState
+  Routes --> TokenSessionManager
+  Routes --> ChangePasswordRequestDto
+  Routes --> ForgotPasswordRequestDto
+  Routes --> LoginRequestDto
+  Routes --> LoginResponseDto
+  Routes --> MeResponseDto
+  Routes --> LogoutResponseDto
+  Routes --> ResetPasswordRequestDto
+  Routes --> ChangePasswordRequest
+  Routes --> ForgotPasswordRequest
+  Routes --> LoginRequest
+  Routes --> ResetPasswordRequest
+  Routes --> ChangePasswordError : maps to HTTP status
+  Routes --> LoginError : maps to HTTP status
+  Routes --> ResetPasswordError : maps to HTTP status
+
+  Routes ..> FuturePlayerService : not owned by auth service
 
 @enduml

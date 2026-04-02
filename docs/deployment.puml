@@ -41,7 +41,7 @@ node "Compliance API" as compliance
 node "Container Registry" as registry
 node "Observability Stack" as observability
 
-clients --> ingress : HTTPS /login
+clients --> ingress : HTTPS /login, /me, /logout,\n/change-password, /forgot-password, /reset-password
 ingress --> svc : route traffic
 svc --> app1
 svc --> app2
@@ -49,11 +49,11 @@ svc --> appn
 svc --> appc1
 svc --> appc2
 
-app1 --> authdb : auth account lookup
-app2 --> authdb : auth account lookup
-appn --> authdb : auth account lookup
-appc1 --> authdb : auth account lookup
-appc2 --> authdb : auth account lookup
+app1 --> authdb : auth account lookup / mutation
+app2 --> authdb : auth account lookup / mutation
+appn --> authdb : auth account lookup / mutation
+appc1 --> authdb : auth account lookup / mutation
+appc2 --> authdb : auth account lookup / mutation
 
 app1 --> compliance : exclusion check
 app2 --> compliance : exclusion check
@@ -83,7 +83,8 @@ note bottom of authdb
 Application pods must remain stateless.
 Persistent state belongs in shared
 services outside the deployment.
-The in-memory repository is only
+The current in-memory auth account
+and session stores are only
 appropriate for local development.
 end note
 

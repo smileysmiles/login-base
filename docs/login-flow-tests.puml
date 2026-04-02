@@ -1,28 +1,41 @@
 @startuml
-title login flow and test branches
+title auth flows and test branches
 
-start
-:Client submits username and password;
-:HTTP /login handler builds LoginRequest;
-:AuthenticationService loads auth account by username;
+partition "POST /login" {
+  start
+  :Client submits username and password;
+  :HTTP /login handler builds LoginRequest;
+  :AuthenticationService loads auth account by username;
 
-if (Auth account found?) then (yes)
-  if (Account locked?) then (yes)
-    :Return AccountLocked;
-    :HTTP 401 + generic error body;
-    stop
-  else (no)
-  endif
-
-  if (Password matches?) then (yes)
-    if (Self-excluded?) then (yes)
-      :Return SelfExcluded;
+  if (Auth account found?) then (yes)
+    if (Account locked?) then (yes)
+      :Return AccountLocked;
       :HTTP 401 + generic error body;
       stop
     else (no)
-      :JwtTokenIssuer signs JWT;
-      :Return success with token;
-      :HTTP 200 + success body with token;
+    endif
+
+    if (Password matches?) then (yes)
+      if (Self-excluded?) then (yes)
+        :Return SelfExcluded;
+        :HTTP 401 + generic error body;
+        stop
+      else (no)
+        :Clear failed attempts;
+        :Create session + sign JWT;
+        :Return success with token;
+        :HTTP 200 + success body with token;
+        stop
+      endif
+    else (no)
+      :Increment failed attempts;
+      if (Threshold reached?) then (yes)
+        :Lock account;
+        :HTTP 401 + generic error body;
+      else (no)
+        :Return InvalidCredentials;
+        :HTTP 401 + generic error body;
+      endif
       stop
     endif
   else (no)
@@ -30,10 +43,62 @@ if (Auth account found?) then (yes)
     :HTTP 401 + generic error body;
     stop
   endif
-else (no)
-  :Return InvalidCredentials;
-  :HTTP 401 + generic error body;
+}
+
+partition "POST /change-password" {
+  start
+  :Client submits current and new password;
+  :HTTP /change-password handler builds request;
+  :Load auth account by username;
+
+  if (Account found and unlocked?) then (yes)
+    if (Current password matches?) then (yes)
+      if (New password differs?) then (yes)
+        :Update stored password;
+        :HTTP 200 + Password changed;
+        stop
+      else (no)
+        :HTTP 400 + generic password-action error;
+        stop
+      endif
+    else (no)
+      :HTTP 401 + generic password-action error;
+      stop
+    endif
+  else (no)
+    :HTTP 401 + generic password-action error;
+    stop
+  endif
+}
+
+partition "POST /forgot-password" {
+  start
+  :Client submits forgot-password username;
+  :Issue generic success response;
+  :Store reset token in-memory when account exists;
+  :HTTP 200 + generic message + reset token;
   stop
-endif
+}
+
+partition "POST /reset-password" {
+  start
+  :Client submits reset token and new password;
+  :Load auth account by reset token;
+
+  if (Token valid and unexpired?) then (yes)
+    if (New password differs?) then (yes)
+      :Update stored password;
+      :Clear reset token and unlock account;
+      :HTTP 200 + Password reset;
+      stop
+    else (no)
+      :HTTP 400 + generic password-action error;
+      stop
+    endif
+  else (no)
+    :HTTP 400 + generic password-action error;
+    stop
+  endif
+}
 
 @enduml

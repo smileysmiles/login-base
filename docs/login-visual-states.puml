@@ -1,5 +1,5 @@
 @startuml
-title login screen visual states
+title auth UI visual states
 
 [*] --> EmptyForm
 EmptyForm --> Submitting : user clicks Sign In
@@ -7,12 +7,34 @@ Submitting --> Success : valid credentials
 Submitting --> AuthenticationFailed : 401 generic failure
 
 AuthenticationFailed --> EmptyForm : user edits input
-Success --> [*]
+Success --> MeLoading : protected route loads
+MeLoading --> AuthenticatedHome : /me returns 200
+MeLoading --> SessionRejected : /me returns 401
+SessionRejected --> EmptyForm : token cleared and redirected
+AuthenticatedHome --> ChangePasswordSubmitting : user submits change password
+ChangePasswordSubmitting --> AuthenticatedHome : success
+ChangePasswordSubmitting --> ChangePasswordFailed : generic password-action error
+ChangePasswordFailed --> AuthenticatedHome : user retries or dismisses
+AuthenticatedHome --> ForgotPasswordSubmitting : forgot/reset flow in local PoC
+ForgotPasswordSubmitting --> ForgotPasswordIssued : reset token returned
+ForgotPasswordIssued --> ResetPasswordSubmitting : user submits reset token
+ResetPasswordSubmitting --> ResetPasswordSuccess : valid token
+ResetPasswordSubmitting --> ResetPasswordFailed : invalid token or bad request
 
 state EmptyForm
 state Submitting
 state Success
 state AuthenticationFailed
+state MeLoading
+state SessionRejected
+state AuthenticatedHome
+state ChangePasswordSubmitting
+state ChangePasswordFailed
+state ForgotPasswordSubmitting
+state ForgotPasswordIssued
+state ResetPasswordSubmitting
+state ResetPasswordSuccess
+state ResetPasswordFailed
 
 note right of AuthenticationFailed
 Visual test should confirm
@@ -23,8 +45,17 @@ end note
 
 note right of Success
 Successful login state should
-carry a JWT returned from the
-current auth boundary.
+store a JWT returned from the
+current auth boundary, but the
+authenticated UI should wait for
+`GET /me` to confirm the session.
+end note
+
+note right of ForgotPasswordIssued
+The current PoC exposes the reset
+token in the response so the flow
+is usable without an email/SMS
+delivery integration.
 end note
 
 @enduml

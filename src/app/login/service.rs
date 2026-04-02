@@ -32,6 +32,8 @@ impl<A: AuthenticateUseCase, T: TokenIssuer> LoginUseCase for LoginService<A, T>
         let token = self.token_issuer.issue_for(&authenticated.account);
 
         Ok(LoginResponse {
+            account_id: authenticated.account.id,
+            username: authenticated.account.username,
             message: "OK".to_string(),
             token,
         })
@@ -44,8 +46,11 @@ mod tests {
     use crate::domain::auth_account::AuthAccount;
 
     use super::*;
-    use crate::app::login::{AuthenticateUseCase, AuthenticationSuccess, LoginError};
+    use super::super::authenticate::{AuthenticateUseCase, AuthenticationSuccess};
+    use super::super::errors::LoginError;
 
+    // Authentication is stubbed so these tests stay focused on login orchestration:
+    // propagate auth outcomes and issue a token only on success.
     struct StubAuthenticateUseCase {
         result: Result<AuthenticationSuccess, LoginError>,
     }
@@ -56,6 +61,7 @@ mod tests {
         }
     }
 
+    // The issuer double makes token creation deterministic for assertions.
     struct StubTokenIssuer;
 
     impl TokenIssuer for StubTokenIssuer {
@@ -64,6 +70,7 @@ mod tests {
         }
     }
 
+    // Service tests keep the request shape fixed and swap the auth result instead.
     fn make_request(password: &str) -> LoginRequest {
         LoginRequest {
             username: "demo".to_string(),
@@ -84,7 +91,18 @@ mod tests {
 
         let result = service.login(make_request("password"));
 
-        assert!(matches!(result, Ok(LoginResponse { message, token }) if message == "OK" && token == "token-for-1"));
+        assert!(matches!(
+            result,
+            Ok(LoginResponse {
+                account_id,
+                username,
+                message,
+                token
+            }) if account_id == 1
+                && username == "demo"
+                && message == "OK"
+                && token == "token-for-1"
+        ));
     }
 
     #[test]
