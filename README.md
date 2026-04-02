@@ -111,16 +111,16 @@ Set `LOGIN_BASE_HTTP_TRACE_ENABLED=false` to disable HTTP request trace/log midd
 
 1. Start a local OpenTelemetry Collector using the bundled config:
 
-```powershell
+```cmd
 docker run --rm -p 4317:4317 --mount type=bind,source="C:\Dev\login-base\docs\otel-collector-config.yaml",target=/etc/otelcol/config.yaml,readonly otel/opentelemetry-collector:latest
 ```
 
 2. In a second terminal, run the app with telemetry + OTLP:
 
-```powershell
-$env:LOGIN_BASE_OBSERVABILITY="telemetry"
-$env:OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
-$env:OTEL_SERVICE_NAME="login-base"
+```cmd
+set "LOGIN_BASE_OBSERVABILITY=telemetry"
+set "OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317"
+set "OTEL_SERVICE_NAME=login-base"
 cargo run
 ```
 
@@ -179,9 +179,9 @@ cargo run
 
 6. Perf run command (separate terminal, after starting app):
 
-```powershell
-.\perf\run.ps1 -Scenario login
-.\perf\run.ps1 -Scenario login-failure
+```cmd
+powershell -NoProfile -ExecutionPolicy Bypass -File .\perf\run.ps1 -Scenario login
+powershell -NoProfile -ExecutionPolicy Bypass -File .\perf\run.ps1 -Scenario login-failure
 ```
 
 ## HTTP API
@@ -408,8 +408,8 @@ Failed-login scenario:
 
 - `20` virtual users
 - `30s` duration
-- wrong-password login payloads spread across `demo` through `demo-100`
-- designed to stay on the bad-password path longer instead of immediately benchmarking a single locked account
+- wrong-password login payloads for unknown usernames (`missing-*`)
+- keeps the run read-only so it does not mutate/lock seeded demo accounts
 
 Captured metrics:
 
@@ -420,20 +420,20 @@ Captured metrics:
 
 Run it with the service already running locally:
 
-```powershell
-.\perf\run.ps1
+```cmd
+powershell -NoProfile -ExecutionPolicy Bypass -File .\perf\run.ps1
 ```
 
 Run the failed-login perf scenario:
 
-```powershell
-.\perf\run.ps1 -Scenario login-failure
+```cmd
+powershell -NoProfile -ExecutionPolicy Bypass -File .\perf\run.ps1 -Scenario login-failure
 ```
 
 Promote the latest result into the baseline:
 
-```powershell
-.\perf\promote-baseline.ps1
+```cmd
+powershell -NoProfile -ExecutionPolicy Bypass -File .\perf\promote-baseline.ps1
 ```
 
 When the latest result is a failed-login run, promotion will target `perf/baseline-login-failure.json`.
